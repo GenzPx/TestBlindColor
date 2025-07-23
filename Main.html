@@ -1,0 +1,565 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>https://testblindcolor.my.idL/</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      padding: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 1rem;
+      background-color: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #555;
+    }
+    #menu {
+      text-align: center;
+    }
+    #gameScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+    #stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+    #game {
+      display: grid;
+      gap: 4px;
+      justify-content: center;
+    }
+    .tile {
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.3s;
+      position: relative;
+      border-radius: 4px;
+    }
+    .tile:hover {
+      transform: scale(1.05);
+    }
+    .correct {
+      box-shadow: 0 0 10px 5px limegreen;
+    }
+    .wrong::after {
+      content: "\1F480";
+      position: absolute;
+      font-size: 1rem;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #feedback {
+      font-size: 1.1rem;
+      position: absolute;
+      top: 10%;
+      animation: fadeOut 1s forwards;
+      z-index: 5;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+    canvas#confetti {
+      position: fixed;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div id="menu">
+    <h1>Choose Timer Duration</h1>
+    <button onclick="startGame(60)">60s</button>
+    <button onclick="startGame(120)">120s</button>
+    <button onclick="startGame(180)">180s</button>
+  </div>  <div id="gameScreen">
+    <h1>!Test Blind Color Game!</h1>
+    <div id="stats">
+      <div id="score">Score: 0</div>
+      <div id="target">Target: 100</div>
+      <div id="timer">Time: 0</div>
+      <div id="health">Health: 5</div>
+    </div>
+    <div id="game"></div>
+    <div id="feedback"></div>
+  </div>  <script>
+    const menu = document.getElementById('menu');
+    const gameScreen = document.getElementById('gameScreen');
+    const game = document.getElementById('game');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const healthEl = document.getElementById('health');
+    const targetEl = document.getElementById('target');
+    const feedback = document.getElementById('feedback');
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+
+    let score = 0;
+    let time = 0;
+    let health = 5;
+    let target = 50;
+    let gridSize = 3;
+    let timer;
+    let particles = [];
+
+    const positiveFeedback = ["Nice!", "Great!", "Excellent!", "Perfect!", "Well done!"];
+    const negativeFeedback = ["Oops!", "Try again!", "Wrong!", "Not quite!", "So close!"];
+
+    function startGame(duration) {
+      time = duration;
+      score = 0;
+      health = 5;
+      target = 50;
+      menu.style.display = 'none';
+      gameScreen.style.display = 'flex';
+      resizeCanvas();
+      updateUI();
+      startRound();
+      startTimer();
+    }
+
+    const randomColor = () => {
+      const r = Math.floor(Math.random() * 150 + 50);
+      const g = Math.floor(Math.random() * 150 + 50);
+      const b = Math.floor(Math.random() * 150 + 50);
+      return `rgb(${r},${g},${b})`;
+    };
+
+    const adjustColor = (rgb, diff) => {
+      let [r, g, b] = rgb.match(/\d+/g).map(Number);
+      const channel = Math.floor(Math.random() * 3);
+      if (channel === 0) r = Math.min(255, r + diff);
+      if (channel === 1) g = Math.min(255, g + diff);
+      if (channel === 2) b = Math.min(255, b + diff);
+      return `rgb(${r},${g},${b})`;
+    };
+
+    function startRound() {
+      game.innerHTML = '';
+      if (score >= target) {
+        target += 100;
+        time += 30;
+        launchConfetti();
+      }
+      gridSize = Math.min(3 + Math.floor(score / 100), 50);
+      const tileSize = Math.max(Math.min(window.innerWidth, 400) / gridSize, 20);
+      game.style.gridTemplateColumns = `repeat(${gridSize}, ${tileSize}px)`;
+
+      const baseColor = randomColor();
+      const diffLevel = Math.max(5, 60 - score);
+      const oddColor = adjustColor(baseColor, diffLevel);
+      const totalTiles = gridSize * gridSize;
+      const oddIndex = Math.floor(Math.random() * totalTiles);
+
+      for (let i = 0; i < totalTiles; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.style.width = tile.style.height = tileSize + 'px';
+        tile.style.backgroundColor = i === oddIndex ? oddColor : baseColor;
+
+        tile.addEventListener('click', () => {
+          if (i === oddIndex) {
+            tile.classList.add('correct');
+            score++;
+            time++;
+            showFeedback(true);
+            updateUI();
+            setTimeout(startRound, 200);
+          } else {
+            tile.classList.add('wrong');
+            health--;
+            showFeedback(false);
+            updateUI();
+            if (health <= 0) endGame();
+          }
+        });
+
+        game.appendChild(tile);
+      }
+    }
+
+    function updateUI() {
+      scoreEl.textContent = `Score: ${score}`;
+      timerEl.textContent = `Time: ${time}`;
+      healthEl.textContent = `Health: ${health}`;
+      targetEl.textContent = `Target: ${target}`;
+    }
+
+    function startTimer() {
+      timer = setInterval(() => {
+        time--;
+        updateUI();
+        if (time <= 0) endGame();
+      }, 1000);
+    }
+
+    function showFeedback(isCorrect) {
+      feedback.textContent = isCorrect
+        ? positiveFeedback[Math.floor(Math.random() * positiveFeedback.length)]
+        : negativeFeedback[Math.floor(Math.random() * negativeFeedback.length)];
+      feedback.style.animation = 'none';
+      void feedback.offsetWidth;
+      feedback.style.animation = 'fadeOut 1s forwards';
+    }
+
+    function endGame() {
+      clearInterval(timer);
+      window.location.href = 'https://www.google.com/search?q=How+to+overcome+color+blindness';
+    }
+
+    function resizeCanvas() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+
+    function launchConfetti() {
+      particles = [];
+      for (let i = 0; i < 150; i++) {
+        particles.push({
+          x: Math.random() * confettiCanvas.width,
+          y: Math.random() * confettiCanvas.height - 100,
+          r: Math.random() * 6 + 2,
+          d: Math.random() * 50,
+          color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+          tilt: Math.random() * 10 - 5
+        });
+      }
+      drawConfetti();
+    }
+
+    function drawConfetti() {
+      let frame = 0;
+      const interval = setInterval(() => {
+        ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          p.y += Math.cos(f<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>https://testblindcolor.my.idL/</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      padding: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 1rem;
+      background-color: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #555;
+    }
+    #menu {
+      text-align: center;
+    }
+    #gameScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+    #stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+    #game {
+      display: grid;
+      gap: 4px;
+      justify-content: center;
+    }
+    .tile {
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.3s;
+      position: relative;
+      border-radius: 4px;
+    }
+    .tile:hover {
+      transform: scale(1.05);
+    }
+    .correct {
+      box-shadow: 0 0 10px 5px limegreen;
+    }
+    .wrong::after {
+      content: "\1F480";
+      position: absolute;
+      font-size: 1rem;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #feedback {
+      font-size: 1.1rem;
+      position: absolute;
+      top: 10%;
+      animation: fadeOut 1s forwards;
+      z-index: 5;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+    canvas#confetti {
+      position: fixed;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div id="menu">
+    <h1>Choose Timer Duration</h1>
+    <button onclick="startGame(60)">60s</button>
+    <button onclick="startGame(120)">120s</button>
+    <button onclick="startGame(180)">180s</button>
+  </div>  <div id="gameScreen">
+    <h1>!Test Blind Color Game!</h1>
+    <div id="stats">
+      <div id="score">Score: 0</div>
+      <div id="target">Target: 100</div>
+      <div id="timer">Time: 0</div>
+      <div id="health">Health: 5</div>
+    </div>
+    <div id="game"></div>
+    <div id="feedback"></div>
+  </div>  <script>
+    const menu = document.getElementById('menu');
+    const gameScreen = document.getElementById('gameScreen');
+    const game = document.getElementById('game');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const healthEl = document.getElementById('health');
+    const targetEl = document.getElementById('target');
+    const feedback = document.getElementById('feedback');
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+
+    let score = 0;
+    let time = 0;
+    let health = 5;
+    let target = 50;
+    let gridSize = 3;
+    let timer;
+    let particles = [];
+
+    const positiveFeedback = ["Nice!", "Great!", "Excellent!", "Perfect!", "Well done!"];
+    const negativeFeedback = ["Oops!", "Try again!", "Wrong!", "Not quite!", "So close!"];
+
+    function startGame(duration) {
+      time = duration;
+      score = 0;
+      health = 5;
+      target = 50;
+      menu.style.display = 'none';
+      gameScreen.style.display = 'flex';
+      resizeCanvas();
+      updateUI();
+      startRound();
+      startTimer();
+    }
+
+    const randomColor = () => {
+      const r = Math.floor(Math.random() * 150 + 50);
+      const g = Math.floor(Math.random() * 150 + 50);
+      const b = Math.floor(Math.random() * 150 + 50);
+      return `rgb(${r},${g},${b})`;
+    };
+
+    const adjustColor = (rgb, diff) => {
+      let [r, g, b] = rgb.match(/\d+/g).map(Number);
+      const channel = Math.floor(Math.random() * 3);
+      if (channel === 0) r = Math.min(255, r + diff);
+      if (channel === 1) g = Math.min(255, g + diff);
+      if (channel === 2) b = Math.min(255, b + diff);
+      return `rgb(${r},${g},${b})`;
+    };
+
+    function startRound() {
+      game.innerHTML = '';
+      if (score >= target) {
+        target += 100;
+        time += 30;
+        launchConfetti();
+      }
+      gridSize = Math.min(3 + Math.floor(score / 100), 50);
+      const tileSize = Math.max(Math.min(window.innerWidth, 400) / gridSize, 20);
+      game.style.gridTemplateColumns = `repeat(${gridSize}, ${tileSize}px)`;
+
+      const baseColor = randomColor();
+      const diffLevel = Math.max(5, 60 - score);
+      const oddColor = adjustColor(baseColor, diffLevel);
+      const totalTiles = gridSize * gridSize;
+      const oddIndex = Math.floor(Math.random() * totalTiles);
+
+      for (let i = 0; i < totalTiles; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.style.width = tile.style.height = tileSize + 'px';
+        tile.style.backgroundColor = i === oddIndex ? oddColor : baseColor;
+
+        tile.addEventListener('click', () => {
+          if (i === oddIndex) {
+            tile.classList.add('correct');
+            score++;
+            time++;
+            showFeedback(true);
+            updateUI();
+            setTimeout(startRound, 200);
+          } else {
+            tile.classList.add('wrong');
+            health--;
+            showFeedback(false);
+            updateUI();
+            if (health <= 0) endGame();
+          }
+        });
+
+        game.appendChild(tile);
+      }
+    }
+
+    function updateUI() {
+      scoreEl.textContent = `Score: ${score}`;
+      timerEl.textContent = `Time: ${time}`;
+      healthEl.textContent = `Health: ${health}`;
+      targetEl.textContent = `Target: ${target}`;
+    }
+
+    function startTimer() {
+      timer = setInterval(() => {
+        time--;
+        updateUI();
+        if (time <= 0) endGame();
+      }, 1000);
+    }
+
+    function showFeedback(isCorrect) {
+      feedback.textContent = isCorrect
+        ? positiveFeedback[Math.floor(Math.random() * positiveFeedback.length)]
+        : negativeFeedback[Math.floor(Math.random() * negativeFeedback.length)];
+      feedback.style.animation = 'none';
+      void feedback.offsetWidth;
+      feedback.style.animation = 'fadeOut 1s forwards';
+    }
+
+    function endGame() {
+      clearInterval(timer);
+      window.location.href = 'https://www.google.com/search?q=How+to+overcome+color+blindness';
+    }
+
+    function resizeCanvas() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+
+    function launchConfetti() {
+      particles = [];
+      for (let i = 0; i < 150; i++) {
+        particles.push({
+          x: Math.random() * confettiCanvas.width,
+          y: Math.random() * confettiCanvas.height - 100,
+          r: Math.random() * 6 + 2,
+          d: Math.random() * 50,
+          color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+          tilt: Math.random() * 10 - 5
+        });
+      }
+      drawConfetti();
+    }
+
+    function drawConfetti() {
+      let frame = 0;
+      const interval = setInterval(() => {
+        ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          p.y += Math.cos(frame + p.d) + 1 + p.r / 2;
+          p.x += Math.sin(frame);
+        });
+        frame++;
+        if (frame > 80) clearInterval(interval);
+      }, 20);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+  </script></body>
+</html>mrame + p.d) + 1 + p.r / 2;
+          p.x += Math.sin(frame);
+        });
+        frame++;
+        if (frame > 80) clearInterval(interval);
+      }, 20);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+  </script></body>
+</html>
